@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { 
   Plus, 
   Search, 
@@ -23,6 +23,7 @@ import {
   Upload,
   Image as ImageIcon
 } from 'lucide-react';
+import { useProducts } from "../../context/ProductsContext";
 
 const ProductList = () => {
   const [search, setSearch] = useState('');
@@ -36,6 +37,16 @@ const ProductList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [animateStats, setAnimateStats] = useState(false);
   
+  // Use products from context
+  const { 
+    products, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    clearAllProducts,
+    getCategories 
+  } = useProducts();
+  
   // New product state
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -44,18 +55,8 @@ const ProductList = () => {
     stock: '',
     status: 'in-stock',
     description: '',
+    image: '📦'
   });
-
-  // Load products from localStorage on initial render
-  const [products, setProducts] = useState(() => {
-    const savedProducts = localStorage.getItem('products');
-    return savedProducts ? JSON.parse(savedProducts) : [];
-  });
-
-  // Save products to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('products', JSON.stringify(products));
-  }, [products]);
 
   useEffect(() => {
     setAnimateStats(true);
@@ -107,7 +108,7 @@ const ProductList = () => {
   // Delete product function
   const handleDeleteProduct = () => {
     if (selectedProduct) {
-      setProducts(products.filter(p => p.id !== selectedProduct.id));
+      deleteProduct(selectedProduct.id);
       setShowDeleteModal(false);
       setSelectedProduct(null);
     }
@@ -116,10 +117,7 @@ const ProductList = () => {
   // Edit product function
   const handleEditProduct = () => {
     if (selectedProduct) {
-      const updatedProducts = products.map(p =>
-        p.id === selectedProduct.id ? selectedProduct : p
-      );
-      setProducts(updatedProducts);
+      updateProduct(selectedProduct);
       setShowEditModal(false);
       setSelectedProduct(null);
     }
@@ -128,20 +126,12 @@ const ProductList = () => {
   // Add new product function
   const handleAddProduct = () => {
     if (newProduct.name && newProduct.price && newProduct.stock) {
-      const newProd = {
-        id: `PROD-${String(products.length + 1).padStart(3, '0')}`,
-        name: newProduct.name,
-        category: newProduct.category,
-        price: `$${parseFloat(newProduct.price).toFixed(2)}`,
+      addProduct({
+        ...newProduct,
+        price: parseFloat(newProduct.price),
         stock: parseInt(newProduct.stock),
-        status: newProduct.status,
-        sales: Math.floor(Math.random() * 200), // Random sales for demo
-        description: newProduct.description || 'No description available.',
-        sku: `SKU-${String(products.length + 1).padStart(3, '0')}`,
-        image: newProduct.image || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'
-      };
-      
-      setProducts([...products, newProd]);
+        image: newProduct.image || '📦'
+      });
       setShowAddModal(false);
       setNewProduct({
         name: '',
@@ -150,7 +140,7 @@ const ProductList = () => {
         stock: '',
         status: 'in-stock',
         description: '',
-        image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'
+        image: '📦'
       });
     }
   };
@@ -195,7 +185,7 @@ const ProductList = () => {
   // Clear all products function
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all products? This cannot be undone.')) {
-      setProducts([]);
+      clearAllProducts();
       setSearch('');
       setCategoryFilter('All Categories');
       setStatusFilter('All Status');
@@ -216,7 +206,9 @@ const ProductList = () => {
     if (products.length === 0) return '$0.00';
     
     const total = products.reduce((sum, product) => {
-      const price = parseFloat(product.price.replace('$', ''));
+      const price = typeof product.price === 'string' 
+        ? parseFloat(product.price.replace('$', '')) 
+        : product.price;
       return sum + price;
     }, 0);
     
@@ -225,7 +217,7 @@ const ProductList = () => {
 
   // Calculate total sales
   const calculateTotalSales = () => {
-    return products.reduce((sum, product) => sum + product.sales, 0);
+    return products.reduce((sum, product) => sum + (product.sales || 0), 0);
   };
 
   // Handle input change for edit modal
@@ -268,6 +260,14 @@ const ProductList = () => {
 
   // Get unique categories for filter dropdown
   const uniqueCategories = ['All Categories', ...new Set(products.map(p => p.category))];
+
+  // Get emoji from image
+  const getEmojiFromImage = (image) => {
+    if (image.startsWith('http') || image.startsWith('data:image')) {
+      return '📦';
+    }
+    return image || '📦';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 transition-all duration-300">
@@ -473,15 +473,21 @@ const ProductList = () => {
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2 sm:gap-3">
                               <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-lg overflow-hidden flex-shrink-0">
-                                <img 
-                                  src={product.image} 
-                                  alt={product.name}
-                                  className="absolute inset-0 w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop';
-                                  }}
-                                />
+                                {product.image && (product.image.startsWith('http') || product.image.startsWith('data:image')) ? (
+                                  <img 
+                                    src={product.image} 
+                                    alt={product.name}
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.src = 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop';
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center text-lg">
+                                    {getEmojiFromImage(product.image)}
+                                  </div>
+                                )}
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20"></div>
                               </div>
                               <div className="min-w-0">
@@ -495,7 +501,7 @@ const ProductList = () => {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="font-semibold text-gray-900 text-xs sm:text-sm">
-                              {product.price}
+                              ${typeof product.price === 'number' ? product.price.toFixed(2) : product.price}
                             </span>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -528,7 +534,7 @@ const ProductList = () => {
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-1 sm:gap-2">
                               <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-500" />
-                              <span className="font-medium text-gray-900 text-xs sm:text-sm">{product.sales}</span>
+                              <span className="font-medium text-gray-900 text-xs sm:text-sm">{product.sales || 0}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -773,16 +779,22 @@ const ProductList = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 <div className="md:col-span-2 space-y-4">
                   <div className="flex items-start gap-4">
-                    <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden flex-shrink-0">
-                      <img 
-                        src={selectedProduct.image} 
-                        alt={selectedProduct.name}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop';
-                        }}
-                      />
+                    <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                      {selectedProduct.image && (selectedProduct.image.startsWith('http') || selectedProduct.image.startsWith('data:image')) ? (
+                        <img 
+                          src={selectedProduct.image} 
+                          alt={selectedProduct.name}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop';
+                          }}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-4xl">
+                          {getEmojiFromImage(selectedProduct.image)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 mb-2">Product Information</h4>
@@ -804,9 +816,11 @@ const ProductList = () => {
                             <span className="font-medium text-gray-900">{selectedProduct.id}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 text-gray-400" />
+                            <DollarSign className="h-4 w-4 text-gray400" />
                             <span className="text-gray-700">Price: </span>
-                            <span className="font-medium text-gray-900">{selectedProduct.price}</span>
+                            <span className="font-medium text-gray-900">
+                              ${typeof selectedProduct.price === 'number' ? selectedProduct.price.toFixed(2) : selectedProduct.price}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Layers className="h-4 w-4 text-gray-400" />
@@ -856,7 +870,7 @@ const ProductList = () => {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-gray-700">Total Sales:</span>
-                        <span className="font-semibold text-gray-900">{selectedProduct.sales}</span>
+                        <span className="font-semibold text-gray-900">{selectedProduct.sales || 0}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-emerald-500" />
@@ -917,12 +931,18 @@ const ProductList = () => {
                     Product Image
                   </label>
                   <div className="flex items-center gap-4">
-                    <div className="relative w-20 h-20 rounded-lg overflow-hidden">
-                      <img 
-                        src={selectedProduct.image} 
-                        alt={selectedProduct.name}
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
+                      {selectedProduct.image && (selectedProduct.image.startsWith('http') || selectedProduct.image.startsWith('data:image')) ? (
+                        <img 
+                          src={selectedProduct.image} 
+                          alt={selectedProduct.name}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-2xl">
+                          {getEmojiFromImage(selectedProduct.image)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <label className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-300 cursor-pointer transition-colors">
@@ -936,6 +956,13 @@ const ProductList = () => {
                         />
                       </label>
                       <p className="text-xs text-gray-500 mt-1">JPG, PNG up to 2MB</p>
+                      <input
+                        type="text"
+                        value={selectedProduct.image}
+                        onChange={(e) => handleEditInputChange('image', e.target.value)}
+                        className="w-full mt-2 px-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Or enter emoji/icon"
+                      />
                     </div>
                   </div>
                 </div>
@@ -976,11 +1003,14 @@ const ProductList = () => {
                       Price
                     </label>
                     <input
-                      type="text"
-                      value={selectedProduct.price.replace('$', '')}
-                      onChange={(e) => handleEditInputChange('price', `$${e.target.value}`)}
+                      type="number"
+                      value={typeof selectedProduct.price === 'string' 
+                        ? selectedProduct.price.replace('$', '') 
+                        : selectedProduct.price}
+                      onChange={(e) => handleEditInputChange('price', parseFloat(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="0.00"
+                      step="0.01"
                     />
                   </div>
                   
@@ -1081,11 +1111,9 @@ const ProductList = () => {
                   </label>
                   <div className="flex items-center gap-4">
                     <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
-                      <img 
-                        src={newProduct.image} 
-                        alt="Preview"
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-2xl">
+                        {newProduct.image || '📦'}
+                      </div>
                     </div>
                     <div className="flex-1">
                       <label className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-300 cursor-pointer transition-colors">
@@ -1104,7 +1132,7 @@ const ProductList = () => {
                         value={newProduct.image}
                         onChange={(e) => handleAddInputChange('image', e.target.value)}
                         className="w-full mt-2 px-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Or enter image URL"
+                        placeholder="Enter emoji or icon (e.g., 📱, 👟, 💻)"
                       />
                     </div>
                   </div>
