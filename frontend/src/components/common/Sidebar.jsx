@@ -183,7 +183,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
         <div className="p-5 border-b border-[#e5e7eb] flex items-center justify-between bg-[#fef3c7]">
           <div className="flex items-center gap-3">
             <Sparkles className="text-[#fbbf24]" />
-            <span className="font-bold text-lg text-[#1f2937]">ShopSphere</span>
+            <a href="/dashboard"><span className="font-bold text-lg text-[#1f2937]">ShopSphere</span></a>
           </div>
           {isMobile && (
             <button
